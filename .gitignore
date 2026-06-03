@@ -1,0 +1,4 @@
+# 프로젝트 루트/.gitignore
+agents.md
+docs/SPEC.md
+.idea/
