@@ -3,3 +3,6 @@
 agents.md
 docs/SPEC.md
 .idea/
+.gradle/
+build/
+**/build/

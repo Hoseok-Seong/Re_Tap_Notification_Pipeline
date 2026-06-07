@@ -1,0 +1,6 @@
+server:
+  port: 8080
+
+fcm-mock:
+  response-delay-ms: ${FCM_MOCK_RESPONSE_DELAY_MS:50}
+  failure-rate-percent: ${FCM_MOCK_FAILURE_RATE_PERCENT:2.0}
