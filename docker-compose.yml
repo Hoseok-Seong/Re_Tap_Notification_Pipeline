@@ -10,7 +10,7 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD}
       TZ: ${TZ:-Asia/Seoul}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mariadb-data:/var/lib/mysql
       - ./docker/mariadb/init:/docker-entrypoint-initdb.d:ro
