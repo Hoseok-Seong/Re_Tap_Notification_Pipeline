@@ -1,0 +1,35 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mariadb://localhost:3307/retap}
+    username: ${SPRING_DATASOURCE_USERNAME:retap}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.mariadb.jdbc.Driver
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:notification-consumer-group}
+      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      properties:
+        max.poll.records: ${KAFKA_MAX_POLL_RECORDS:500}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    listener:
+      type: batch
+
+notification:
+  consumer:
+    topic: ${NOTIFICATION_TOPIC:push-notifications}
+    dlt-topic: ${NOTIFICATION_DLT_TOPIC:push-notifications-dlt}
+    max-retry-count: ${NOTIFICATION_DLT_MAX_RETRY_COUNT:3}
+    retry-backoff-millis: ${NOTIFICATION_DLT_RETRY_BACKOFF_MILLIS:2000}
+    fcm-base-url: ${FCM_MOCK_BASE_URL:http://localhost:8080}
+    fcm-connect-timeout-millis: ${FCM_MOCK_CONNECT_TIMEOUT_MILLIS:1000}
+    fcm-read-timeout-millis: ${FCM_MOCK_READ_TIMEOUT_MILLIS:1000}
