@@ -74,6 +74,22 @@ services:
     networks:
       - retap-network
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: retap-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: retap-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports:
+      - "8083:8080"
+    networks:
+      - retap-network
+
   fcm-mock-server:
     build:
       context: ./fcm-mock-server
