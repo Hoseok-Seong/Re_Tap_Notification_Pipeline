@@ -118,6 +118,9 @@ class MeasurementHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/fcm-config":
             self.send_json({"metrics": fcm_metrics()})
             return
+        if parsed.path == "/api/consumer-config":
+            self.send_json({"config": consumer_config()})
+            return
 
         self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -125,6 +128,10 @@ class MeasurementHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/fcm-config":
             self.apply_fcm_config()
+            return
+
+        if parsed.path == "/api/consumer-config":
+            self.apply_consumer_config()
             return
 
         if parsed.path != "/api/run":
@@ -144,6 +151,10 @@ class MeasurementHandler(BaseHTTPRequestHandler):
                     failure_rate_percent,
                 )
                 wait_for_fcm_metrics(delay_ms, failure_rate_percent)
+            if bool(payload.get("applyConsumerBeforeRun", True)):
+                max_poll_records = positive_int(payload.get("maxPollRecords"), "maxPollRecords")
+                apply_consumer_config_values(max_poll_records)
+                wait_for_consumer_status()
             command = build_command(kind, count, label, payload)
             log_file = LOG_DIR / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}.log"
             STATE.start(kind, label, command, log_file)
@@ -154,6 +165,22 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             )
             thread.start()
             self.send_json({"started": True, "label": label, "command": command}, HTTPStatus.ACCEPTED)
+        except RuntimeError as e:
+            self.send_json({"error": str(e)}, HTTPStatus.CONFLICT)
+        except ValueError as e:
+            self.send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
+
+    def apply_consumer_config(self) -> None:
+        try:
+            if STATE.snapshot()["running"]:
+                raise RuntimeError("Cannot change Consumer config while a measurement job is running")
+
+            payload = self.read_json()
+            max_poll_records = positive_int(payload.get("maxPollRecords"), "maxPollRecords")
+            apply_consumer_config_values(max_poll_records)
+            self.send_json({"applied": True, "config": wait_for_consumer_config(max_poll_records)})
+        except subprocess.CalledProcessError as e:
+            self.send_json({"error": f"docker compose failed with exit code {e.returncode}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
         except RuntimeError as e:
             self.send_json({"error": str(e)}, HTTPStatus.CONFLICT)
         except ValueError as e:
@@ -248,6 +275,22 @@ def apply_fcm_config_values(delay_ms: int, failure_rate_percent: float) -> None:
     subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
 
 
+def apply_consumer_config_values(max_poll_records: int) -> None:
+    command = [
+        "docker",
+        "compose",
+        "up",
+        "-d",
+        "--force-recreate",
+        "notification-consumer",
+    ]
+    env = {
+        **os.environ,
+        "KAFKA_MAX_POLL_RECORDS": str(max_poll_records),
+    }
+    subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
+
+
 def clean_label(value: str) -> str:
     allowed = []
     for character in value.strip():
@@ -323,6 +366,47 @@ def fcm_metrics() -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
+def consumer_status() -> dict[str, Any]:
+    with urlopen("http://localhost:8082/status", timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def consumer_config() -> dict[str, Any]:
+    max_poll_records = docker_exec_stdout([
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "notification-consumer",
+        "printenv",
+        "KAFKA_MAX_POLL_RECORDS",
+    ])
+    status: dict[str, Any] = {}
+    try:
+        status = consumer_status()
+    except Exception:
+        status = {"available": False}
+    return {
+        "maxPollRecords": int(max_poll_records) if max_poll_records.isdigit() else None,
+        "status": status,
+    }
+
+
+def docker_exec_stdout(command: list[str]) -> str:
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=PROJECT_ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return completed.stdout.strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
 def wait_for_fcm_metrics(expected_delay_ms: int | None = None, expected_failure_rate_percent: float | None = None) -> dict[str, Any]:
     import time
 
@@ -354,6 +438,41 @@ def wait_for_fcm_metrics(expected_delay_ms: int | None = None, expected_failure_
             consecutive_successes = 0
             time.sleep(0.5)
     raise RuntimeError(f"FCM Mock did not become ready: latest={latest}, error={latest_error}")
+
+
+def wait_for_consumer_status() -> dict[str, Any]:
+    import time
+
+    deadline = time.monotonic() + 45
+    latest_error: Exception | None = None
+    consecutive_successes = 0
+    latest: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        try:
+            latest = consumer_status()
+            consecutive_successes += 1
+            if consecutive_successes >= 3:
+                return latest
+            time.sleep(0.5)
+        except Exception as e:
+            latest_error = e
+            consecutive_successes = 0
+            time.sleep(0.5)
+    raise RuntimeError(f"Consumer did not become ready: latest={latest}, error={latest_error}")
+
+
+def wait_for_consumer_config(expected_max_poll_records: int) -> dict[str, Any]:
+    import time
+
+    deadline = time.monotonic() + 45
+    latest: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        wait_for_consumer_status()
+        latest = consumer_config()
+        if latest.get("maxPollRecords") == expected_max_poll_records:
+            return latest
+        time.sleep(0.5)
+    raise RuntimeError(f"Consumer config did not become ready: latest={latest}")
 
 
 def main() -> None:

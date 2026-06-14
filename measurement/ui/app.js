@@ -5,12 +5,16 @@ const elements = {
   timeoutSeconds: document.querySelector("#timeoutSeconds"),
   skipPrepareArrivals: document.querySelector("#skipPrepareArrivals"),
   applyFcmBeforeRun: document.querySelector("#applyFcmBeforeRun"),
+  applyConsumerBeforeRun: document.querySelector("#applyConsumerBeforeRun"),
   fcmDelayMs: document.querySelector("#fcmDelayMs"),
   fcmFailureRatePercent: document.querySelector("#fcmFailureRatePercent"),
+  maxPollRecords: document.querySelector("#maxPollRecords"),
   runButton: document.querySelector("#runButton"),
   applyFcmButton: document.querySelector("#applyFcmButton"),
+  applyConsumerButton: document.querySelector("#applyConsumerButton"),
   refreshButton: document.querySelector("#refreshButton"),
   fcmMetrics: document.querySelector("#fcmMetrics"),
+  consumerMetrics: document.querySelector("#consumerMetrics"),
   statusList: document.querySelector("#statusList"),
   logBox: document.querySelector("#logBox"),
   pipelineTable: document.querySelector("#pipelineTable"),
@@ -18,6 +22,7 @@ const elements = {
 };
 
 let fcmInputsDirty = false;
+let consumerInputsDirty = false;
 
 elements.kind.addEventListener("change", () => {
   const count = elements.count.value || "10000";
@@ -40,8 +45,10 @@ elements.runButton.addEventListener("click", async () => {
     timeoutSeconds: Number(elements.timeoutSeconds.value),
     skipPrepareArrivals: elements.skipPrepareArrivals.checked,
     applyFcmBeforeRun: elements.applyFcmBeforeRun.checked,
+    applyConsumerBeforeRun: elements.applyConsumerBeforeRun.checked,
     delayMs: Number(elements.fcmDelayMs.value),
     failureRatePercent: Number(elements.fcmFailureRatePercent.value),
+    maxPollRecords: Number(elements.maxPollRecords.value),
   };
 
   const response = await fetch("/api/run", {
@@ -54,6 +61,7 @@ elements.runButton.addEventListener("click", async () => {
     alert(body.error || "측정 실행에 실패했습니다.");
   } else {
     fcmInputsDirty = false;
+    consumerInputsDirty = false;
   }
   await refresh();
 });
@@ -64,6 +72,10 @@ elements.fcmDelayMs.addEventListener("input", () => {
 
 elements.fcmFailureRatePercent.addEventListener("input", () => {
   fcmInputsDirty = true;
+});
+
+elements.maxPollRecords.addEventListener("input", () => {
+  consumerInputsDirty = true;
 });
 
 elements.applyFcmButton.addEventListener("click", async () => {
@@ -87,28 +99,52 @@ elements.applyFcmButton.addEventListener("click", async () => {
   await refresh();
 });
 
+elements.applyConsumerButton.addEventListener("click", async () => {
+  elements.applyConsumerButton.disabled = true;
+  const payload = {
+    maxPollRecords: Number(elements.maxPollRecords.value),
+  };
+
+  const response = await fetch("/api/consumer-config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    alert(body.error || "Consumer 설정 적용에 실패했습니다.");
+  } else {
+    consumerInputsDirty = false;
+  }
+  await refresh();
+});
+
 elements.refreshButton.addEventListener("click", refresh);
 
 async function refresh() {
-  const [statusResponse, resultsResponse, logResponse, fcmResponse] = await Promise.all([
+  const [statusResponse, resultsResponse, logResponse, fcmResponse, consumerResponse] = await Promise.all([
     fetch("/api/status"),
     fetch("/api/results"),
     fetch("/api/log"),
     fetch("/api/fcm-config"),
+    fetch("/api/consumer-config"),
   ]);
 
   const status = await statusResponse.json();
   const results = await resultsResponse.json();
   const log = await logResponse.json();
   const fcm = await fcmResponse.json();
+  const consumer = await consumerResponse.json();
 
   renderStatus(status);
   renderFcmMetrics(fcm.metrics);
+  renderConsumerConfig(consumer.config);
   renderTable(elements.pipelineTable, results.pipeline || []);
   renderTable(elements.baselineTable, results.baseline || []);
   elements.logBox.textContent = log.text || "";
   elements.runButton.disabled = Boolean(status.running);
   elements.applyFcmButton.disabled = Boolean(status.running);
+  elements.applyConsumerButton.disabled = Boolean(status.running);
 }
 
 function renderStatus(status) {
@@ -150,6 +186,21 @@ function renderFcmMetrics(metrics) {
   }
   if (!fcmInputsDirty && document.activeElement !== elements.fcmFailureRatePercent) {
     elements.fcmFailureRatePercent.value = metrics.failureRatePercent;
+  }
+}
+
+function renderConsumerConfig(config) {
+  if (!config) {
+    elements.consumerMetrics.textContent = "Consumer 설정을 불러오지 못했습니다.";
+    return;
+  }
+
+  const maxPollRecords = config.maxPollRecords ?? "-";
+  const statusText = config.status?.status || config.status?.available || "-";
+  elements.consumerMetrics.textContent = `max.poll.records=${maxPollRecords} / status=${statusText}`;
+
+  if (!consumerInputsDirty && document.activeElement !== elements.maxPollRecords && config.maxPollRecords) {
+    elements.maxPollRecords.value = config.maxPollRecords;
   }
 }
 

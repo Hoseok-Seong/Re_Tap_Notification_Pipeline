@@ -14,6 +14,8 @@ Open `http://127.0.0.1:8090`, choose `Kafka Pipeline` or `Sequential Baseline`, 
 
 Use the `FCM Mock 설정` panel to change the mock response delay or failure rate before a run. Applying this setting recreates only the FCM Mock container, so the mock metrics counters reset to zero.
 
+Use the `Consumer 설정` panel to change `max.poll.records` before a run. Applying this setting recreates only the Consumer container.
+
 The UI runs the existing scripts in the background and appends results to:
 
 - `measurement/results/pipeline_experiment.csv`
@@ -57,6 +59,7 @@ measurement/results/pipeline_experiment.csv
 - Run with a low `--count` first to verify the setup.
 - For repeatable failure-free throughput tests, set the FCM Mock failure rate to `0`.
 - The FCM batch mock models the Firebase Admin SDK multicast/batch interface with up to 500 messages per request. The configured delay is applied once per batch request, so this measures the impact of reducing HTTP round trips rather than reproducing real FCM latency.
+- Use 10,000-message runs for parameter sweeps, then run the final 1,000,000-message measurement with the best settings. This keeps iteration fast while preserving the project goal of validating million-scale behavior.
 
 ## First Results
 
