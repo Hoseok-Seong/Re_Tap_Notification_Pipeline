@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -59,8 +59,18 @@ def http_json(method: str, url: str, body: dict[str, Any] | None = None, timeout
         raise RuntimeError(f"HTTP {method} {url} failed. status={e.code} body={detail}") from e
 
 
-def fcm_metrics(fcm_url: str) -> dict[str, Any]:
-    return http_json("GET", f"{fcm_url.rstrip('/')}/metrics", timeout=10.0)
+def fcm_metrics(fcm_url: str, retry_seconds: float = 15.0) -> dict[str, Any]:
+    deadline = time.monotonic() + retry_seconds
+    latest_error: Exception | None = None
+
+    while time.monotonic() < deadline:
+        try:
+            return http_json("GET", f"{fcm_url.rstrip('/')}/metrics", timeout=10.0)
+        except (ConnectionError, TimeoutError, OSError, RuntimeError, URLError) as e:
+            latest_error = e
+            time.sleep(0.5)
+
+    raise RuntimeError(f"FCM Mock metrics did not become available: {latest_error}")
 
 
 def wait_for_fcm_total_delta(

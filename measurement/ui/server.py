@@ -137,10 +137,13 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             count = positive_int(payload.get("count"), "count")
             label = clean_label(str(payload.get("label") or default_label(kind, count)))
             if bool(payload.get("applyFcmBeforeRun", True)):
+                delay_ms = non_negative_int(payload.get("delayMs"), "delayMs")
+                failure_rate_percent = percent_value(payload.get("failureRatePercent"), "failureRatePercent")
                 apply_fcm_config_values(
-                    non_negative_int(payload.get("delayMs"), "delayMs"),
-                    percent_value(payload.get("failureRatePercent"), "failureRatePercent"),
+                    delay_ms,
+                    failure_rate_percent,
                 )
+                wait_for_fcm_metrics(delay_ms, failure_rate_percent)
             command = build_command(kind, count, label, payload)
             log_file = LOG_DIR / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}.log"
             STATE.start(kind, label, command, log_file)
@@ -165,7 +168,7 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             delay_ms = non_negative_int(payload.get("delayMs"), "delayMs")
             failure_rate_percent = percent_value(payload.get("failureRatePercent"), "failureRatePercent")
             apply_fcm_config_values(delay_ms, failure_rate_percent)
-            self.send_json({"applied": True, "metrics": wait_for_fcm_metrics()})
+            self.send_json({"applied": True, "metrics": wait_for_fcm_metrics(delay_ms, failure_rate_percent)})
         except subprocess.CalledProcessError as e:
             self.send_json({"error": f"docker compose failed with exit code {e.returncode}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
         except RuntimeError as e:
@@ -320,18 +323,37 @@ def fcm_metrics() -> dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
-def wait_for_fcm_metrics() -> dict[str, Any]:
+def wait_for_fcm_metrics(expected_delay_ms: int | None = None, expected_failure_rate_percent: float | None = None) -> dict[str, Any]:
     import time
 
     deadline = time.monotonic() + 30
     latest_error: Exception | None = None
+    consecutive_successes = 0
+    latest: dict[str, Any] = {}
     while time.monotonic() < deadline:
         try:
-            return fcm_metrics()
+            latest = fcm_metrics()
+            if expected_delay_ms is not None and int(latest["responseDelayMs"]) != expected_delay_ms:
+                consecutive_successes = 0
+                time.sleep(0.5)
+                continue
+            if (
+                    expected_failure_rate_percent is not None
+                    and float(latest["failureRatePercent"]) != expected_failure_rate_percent
+            ):
+                consecutive_successes = 0
+                time.sleep(0.5)
+                continue
+
+            consecutive_successes += 1
+            if consecutive_successes >= 3:
+                return latest
+            time.sleep(0.5)
         except Exception as e:
             latest_error = e
+            consecutive_successes = 0
             time.sleep(0.5)
-    raise RuntimeError(f"FCM Mock did not become ready: {latest_error}")
+    raise RuntimeError(f"FCM Mock did not become ready: latest={latest}, error={latest_error}")
 
 
 def main() -> None:
