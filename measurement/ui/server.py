@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -13,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -113,11 +115,18 @@ class MeasurementHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/log":
             self.send_json({"text": read_latest_log()})
             return
+        if parsed.path == "/api/fcm-config":
+            self.send_json({"metrics": fcm_metrics()})
+            return
 
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/fcm-config":
+            self.apply_fcm_config()
+            return
+
         if parsed.path != "/api/run":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -137,6 +146,36 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             )
             thread.start()
             self.send_json({"started": True, "label": label, "command": command}, HTTPStatus.ACCEPTED)
+        except RuntimeError as e:
+            self.send_json({"error": str(e)}, HTTPStatus.CONFLICT)
+        except ValueError as e:
+            self.send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
+
+    def apply_fcm_config(self) -> None:
+        try:
+            if STATE.snapshot()["running"]:
+                raise RuntimeError("Cannot change FCM config while a measurement job is running")
+
+            payload = self.read_json()
+            delay_ms = non_negative_int(payload.get("delayMs"), "delayMs")
+            failure_rate_percent = percent_value(payload.get("failureRatePercent"), "failureRatePercent")
+            command = [
+                "docker",
+                "compose",
+                "up",
+                "-d",
+                "--force-recreate",
+                "fcm-mock-server",
+            ]
+            env = {
+                **os.environ,
+                "FCM_MOCK_RESPONSE_DELAY_MS": str(delay_ms),
+                "FCM_MOCK_FAILURE_RATE_PERCENT": str(failure_rate_percent),
+            }
+            subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
+            self.send_json({"applied": True, "metrics": wait_for_fcm_metrics()})
+        except subprocess.CalledProcessError as e:
+            self.send_json({"error": f"docker compose failed with exit code {e.returncode}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
         except RuntimeError as e:
             self.send_json({"error": str(e)}, HTTPStatus.CONFLICT)
         except ValueError as e:
@@ -174,6 +213,26 @@ def positive_int(value: Any, name: str) -> int:
         raise ValueError(f"{name} must be an integer") from e
     if number <= 0:
         raise ValueError(f"{name} must be positive")
+    return number
+
+
+def non_negative_int(value: Any, name: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{name} must be an integer") from e
+    if number < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return number
+
+
+def percent_value(value: Any, name: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{name} must be numeric") from e
+    if number < 0 or number > 100:
+        raise ValueError(f"{name} must be between 0 and 100")
     return number
 
 
@@ -245,6 +304,25 @@ def read_latest_log() -> str:
     if not logs:
         return ""
     return logs[0].read_text(errors="replace")[-12000:]
+
+
+def fcm_metrics() -> dict[str, Any]:
+    with urlopen("http://localhost:8080/metrics", timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def wait_for_fcm_metrics() -> dict[str, Any]:
+    import time
+
+    deadline = time.monotonic() + 30
+    latest_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            return fcm_metrics()
+        except Exception as e:
+            latest_error = e
+            time.sleep(0.5)
+    raise RuntimeError(f"FCM Mock did not become ready: {latest_error}")
 
 
 def main() -> None:

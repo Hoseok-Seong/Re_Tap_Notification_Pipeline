@@ -4,8 +4,12 @@ const elements = {
   label: document.querySelector("#label"),
   timeoutSeconds: document.querySelector("#timeoutSeconds"),
   skipPrepareArrivals: document.querySelector("#skipPrepareArrivals"),
+  fcmDelayMs: document.querySelector("#fcmDelayMs"),
+  fcmFailureRatePercent: document.querySelector("#fcmFailureRatePercent"),
   runButton: document.querySelector("#runButton"),
+  applyFcmButton: document.querySelector("#applyFcmButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  fcmMetrics: document.querySelector("#fcmMetrics"),
   statusList: document.querySelector("#statusList"),
   logBox: document.querySelector("#logBox"),
   pipelineTable: document.querySelector("#pipelineTable"),
@@ -46,24 +50,47 @@ elements.runButton.addEventListener("click", async () => {
   await refresh();
 });
 
+elements.applyFcmButton.addEventListener("click", async () => {
+  elements.applyFcmButton.disabled = true;
+  const payload = {
+    delayMs: Number(elements.fcmDelayMs.value),
+    failureRatePercent: Number(elements.fcmFailureRatePercent.value),
+  };
+
+  const response = await fetch("/api/fcm-config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    alert(body.error || "FCM Mock 설정 적용에 실패했습니다.");
+  }
+  await refresh();
+});
+
 elements.refreshButton.addEventListener("click", refresh);
 
 async function refresh() {
-  const [statusResponse, resultsResponse, logResponse] = await Promise.all([
+  const [statusResponse, resultsResponse, logResponse, fcmResponse] = await Promise.all([
     fetch("/api/status"),
     fetch("/api/results"),
     fetch("/api/log"),
+    fetch("/api/fcm-config"),
   ]);
 
   const status = await statusResponse.json();
   const results = await resultsResponse.json();
   const log = await logResponse.json();
+  const fcm = await fcmResponse.json();
 
   renderStatus(status);
+  renderFcmMetrics(fcm.metrics);
   renderTable(elements.pipelineTable, results.pipeline || []);
   renderTable(elements.baselineTable, results.baseline || []);
   elements.logBox.textContent = log.text || "";
   elements.runButton.disabled = Boolean(status.running);
+  elements.applyFcmButton.disabled = Boolean(status.running);
 }
 
 function renderStatus(status) {
@@ -84,6 +111,28 @@ function renderStatus(status) {
     description.textContent = value;
     return [term, description];
   }));
+}
+
+function renderFcmMetrics(metrics) {
+  if (!metrics) {
+    elements.fcmMetrics.textContent = "FCM Mock 메트릭을 불러오지 못했습니다.";
+    return;
+  }
+
+  elements.fcmMetrics.textContent = [
+    `delay=${metrics.responseDelayMs}ms`,
+    `failure=${metrics.failureRatePercent}%`,
+    `total=${metrics.totalRequests}`,
+    `success=${metrics.successRequests}`,
+    `failureCount=${metrics.failureRequests}`,
+  ].join(" / ");
+
+  if (document.activeElement !== elements.fcmDelayMs) {
+    elements.fcmDelayMs.value = metrics.responseDelayMs;
+  }
+  if (document.activeElement !== elements.fcmFailureRatePercent) {
+    elements.fcmFailureRatePercent.value = metrics.failureRatePercent;
+  }
 }
 
 function renderTable(container, rows) {

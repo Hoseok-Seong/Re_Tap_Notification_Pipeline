@@ -12,6 +12,8 @@ python3 measurement/ui/server.py
 
 Open `http://127.0.0.1:8090`, choose `Kafka Pipeline` or `Sequential Baseline`, set the count and label, then click `실행`.
 
+Use the `FCM Mock 설정` panel to change the mock response delay or failure rate before a run. Applying this setting recreates only the FCM Mock container, so the mock metrics counters reset to zero.
+
 The UI runs the existing scripts in the background and appends results to:
 
 - `measurement/results/pipeline_experiment.csv`
