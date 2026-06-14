@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--count", type=int, default=1000, help="Number of notifications to publish.")
     parser.add_argument("--producer-url", default="http://localhost:8081", help="Notification Producer base URL.")
     parser.add_argument("--fcm-url", default="http://localhost:8080", help="FCM Mock base URL.")
-    parser.add_argument("--timeout-seconds", type=float, default=300.0, help="Max wait time for FCM Mock metrics.")
+    parser.add_argument("--timeout-seconds", type=float, default=900.0, help="Max wait time for FCM Mock metrics.")
     parser.add_argument("--output", type=Path, default=RESULTS_DIR / "pipeline_experiment.csv")
     parser.add_argument("--label", default="pipeline", help="Experiment label stored in CSV.")
     parser.add_argument(

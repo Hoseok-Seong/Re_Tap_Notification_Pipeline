@@ -1,0 +1,2 @@
+timestamp,label,requested_count,published_count,fcm_total_delta,fcm_success_delta,fcm_failure_delta,producer_elapsed_millis,end_to_end_elapsed_seconds,throughput_msg_per_second,fcm_response_delay_ms,fcm_failure_rate_percent
+2026-06-14T14:55:23,pipeline-p10-b500-d50-f0,10000,10000,10000,10000,0,178,589.0,16.978,50,0.0

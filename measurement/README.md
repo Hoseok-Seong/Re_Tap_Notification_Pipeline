@@ -37,3 +37,21 @@ measurement/results/pipeline_experiment.csv
 - FCM Mock metrics are cumulative, so scripts record before/after deltas.
 - Run with a low `--count` first to verify the setup.
 - For repeatable failure-free throughput tests, set the FCM Mock failure rate to `0`.
+
+## First Results
+
+Environment:
+
+- Local Docker Desktop
+- Kafka partitions: 10
+- Consumer max poll records: 500
+- FCM Mock delay: 50 ms
+- FCM Mock failure rate: 0%
+- Message count: 10,000
+
+| Scenario | Elapsed seconds | Throughput msg/s | Notes |
+|---|---:|---:|---|
+| Sequential baseline | 591.633 | 16.902 | Direct FCM Mock calls without Kafka |
+| Kafka pipeline | 589.000 | 16.978 | Producer published 10,000 messages in 178 ms; Consumer FCM calls are currently sequential |
+
+The first pipeline result is close to the sequential baseline because the current Consumer polls Kafka in batches but calls FCM Mock one message at a time. The next optimization target is parallelizing or true-batching the FCM send path before running partition/batch-size experiments.

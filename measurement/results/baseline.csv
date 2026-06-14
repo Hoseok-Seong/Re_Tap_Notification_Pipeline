@@ -1,0 +1,2 @@
+timestamp,label,requested_count,client_success_count,client_failure_count,fcm_total_delta,fcm_success_delta,fcm_failure_delta,elapsed_seconds,throughput_msg_per_second,fcm_response_delay_ms,fcm_failure_rate_percent
+2026-06-14T14:35:38,baseline-10000-d50-f0,10000,10000,0,10000,10000,0,591.633,16.902,50,0.0
