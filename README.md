@@ -27,10 +27,9 @@ flowchart LR
     G --> H[DLT Retry Consumer<br/>2s -> 4s -> 8s]
     H -->|재시도 성공| F
     H -->|최종 실패| I[(MariaDB<br/>notification_failures)]
-    J[Measurement UI<br/>localhost:8090] --> A
-    J --> F
-    J --> E
 ```
+
+측정 UI는 위 알림 처리 경로에 포함되는 런타임 컴포넌트가 아니라, 로컬 실험을 편하게 실행하기 위한 보조 도구입니다. Producer 트리거, FCM Mock 설정, Consumer 설정, CSV 조회를 브라우저에서 수행합니다.
 
 ## 모듈
 
