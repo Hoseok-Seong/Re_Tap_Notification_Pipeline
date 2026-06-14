@@ -155,6 +155,8 @@ class MeasurementHandler(BaseHTTPRequestHandler):
                 max_poll_records = positive_int(payload.get("maxPollRecords"), "maxPollRecords")
                 apply_consumer_config_values(max_poll_records)
                 wait_for_consumer_status()
+                if bool(payload.get("applyFcmBeforeRun", True)):
+                    wait_for_fcm_metrics(delay_ms, failure_rate_percent)
             command = build_command(kind, count, label, payload)
             log_file = LOG_DIR / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}.log"
             STATE.start(kind, label, command, log_file)
@@ -281,14 +283,28 @@ def apply_consumer_config_values(max_poll_records: int) -> None:
         "compose",
         "up",
         "-d",
+        "--no-deps",
         "--force-recreate",
         "notification-consumer",
     ]
+    current_fcm = current_fcm_environment()
     env = {
         **os.environ,
+        **current_fcm,
         "KAFKA_MAX_POLL_RECORDS": str(max_poll_records),
     }
     subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
+
+
+def current_fcm_environment() -> dict[str, str]:
+    try:
+        metrics = fcm_metrics()
+        return {
+            "FCM_MOCK_RESPONSE_DELAY_MS": str(metrics["responseDelayMs"]),
+            "FCM_MOCK_FAILURE_RATE_PERCENT": str(metrics["failureRatePercent"]),
+        }
+    except Exception:
+        return {}
 
 
 def clean_label(value: str) -> str:

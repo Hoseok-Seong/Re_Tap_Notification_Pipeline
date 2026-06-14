@@ -15,6 +15,7 @@ Open `http://127.0.0.1:8090`, choose `Kafka Pipeline` or `Sequential Baseline`, 
 Use the `FCM Mock 설정` panel to change the mock response delay or failure rate before a run. Applying this setting recreates only the FCM Mock container, so the mock metrics counters reset to zero.
 
 Use the `Consumer 설정` panel to change `max.poll.records` before a run. Applying this setting recreates only the Consumer container.
+The UI preserves and re-checks the current FCM Mock settings after recreating the Consumer, so changing `max.poll.records` should not reset FCM delay or failure rate.
 
 The UI runs the existing scripts in the background and appends results to:
 
