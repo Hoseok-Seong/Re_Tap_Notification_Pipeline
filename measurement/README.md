@@ -1,146 +1,149 @@
-# Measurement
+# 측정 문서
 
-This directory contains local measurement scripts for the notification pipeline.
+이 디렉터리는 ReTap 알림 파이프라인의 로컬 측정 스크립트, 브라우저 UI, 결과 CSV를 포함합니다.
 
-## Browser UI
+## 브라우저 측정 UI
 
-Run a local UI when you want to start long measurements manually and inspect CSV rows.
+긴 측정을 직접 실행하고 CSV 결과를 확인하려면 로컬 UI를 실행합니다.
 
 ```bash
 python3 measurement/ui/server.py
 ```
 
-Open `http://127.0.0.1:8090`, choose `Kafka Pipeline` or `Sequential Baseline`, set the count and label, then click `실행`.
+브라우저에서 `http://127.0.0.1:8090`을 열고 다음 값을 설정한 뒤 `실행`을 누릅니다.
 
-Use the `FCM Mock 설정` panel to change the mock response delay or failure rate before a run. Applying this setting recreates only the FCM Mock container, so the mock metrics counters reset to zero.
+- 측정 종류: `Kafka Pipeline` 또는 `Sequential Baseline`
+- 건수: 측정할 메시지 수
+- 라벨: CSV에 기록될 실험 이름
+- FCM Mock 설정: 지연 ms, 실패율 %
+- Consumer 설정: `max.poll.records`
 
-Use the `Consumer 설정` panel to change `max.poll.records` before a run. Applying this setting recreates only the Consumer container.
-The UI preserves and re-checks the current FCM Mock settings after recreating the Consumer, so changing `max.poll.records` should not reset FCM delay or failure rate.
+`FCM Mock 설정`을 적용하면 FCM Mock 컨테이너만 재생성되고, Mock 메트릭 카운터가 0으로 초기화됩니다.
 
-The UI runs the existing scripts in the background and appends results to:
+`Consumer 설정`을 적용하면 Consumer 컨테이너만 재생성됩니다. UI는 Consumer 재생성 후 FCM Mock 설정이 유지되는지도 다시 확인합니다.
+
+결과는 다음 파일에 누적됩니다.
 
 - `measurement/results/pipeline_experiment.csv`
 - `measurement/results/baseline.csv`
 
-Per-run logs are written under `measurement/results/ui_logs/`.
+실행 로그는 `measurement/results/ui_logs/` 아래에 저장됩니다. 이 로그 디렉터리는 git에 커밋하지 않습니다.
 
-## Baseline
+## 스크립트 직접 실행
 
-Sequentially call FCM Mock without Kafka:
+### 순차 기준선
+
+Kafka를 거치지 않고 FCM Mock을 N번 직접 호출합니다.
 
 ```bash
 python3 measurement/scripts/run_baseline.py --count 1000
 ```
 
-Default output:
+기본 결과 파일:
 
 ```text
 measurement/results/baseline.csv
 ```
 
-## Kafka Pipeline
+### Kafka 파이프라인
 
-Measure Producer -> Kafka -> Consumer -> FCM Mock:
+Producer -> Kafka -> Consumer -> FCM Mock 전체 경로를 측정합니다.
 
 ```bash
 python3 measurement/scripts/run_pipeline_experiment.py --count 1000
 ```
 
-The script updates `letter.id <= count` to `CURDATE()` before triggering the Producer, so the existing seed data remains usable across days.
+스크립트는 실행 전 `letter.id <= count` 범위의 `arrival_date`를 `CURDATE()`로 업데이트합니다. 그래서 날짜가 바뀌어도 기존 시드 데이터를 계속 사용할 수 있습니다.
 
-Default output:
+기본 결과 파일:
 
 ```text
 measurement/results/pipeline_experiment.csv
 ```
 
-## Notes
+## 측정 시 주의사항
 
-- FCM Mock metrics are cumulative, so scripts record before/after deltas.
-- Run with a low `--count` first to verify the setup.
-- For repeatable failure-free throughput tests, set the FCM Mock failure rate to `0`.
-- The Docker Compose default FCM Mock failure rate is `0`; increase it only for DLT/failure handling checks.
-- The FCM batch mock models the Firebase Admin SDK multicast/batch interface with up to 500 messages per request. The configured delay is applied once per batch request, so this measures the impact of reducing HTTP round trips rather than reproducing real FCM latency.
-- Use 10,000-message runs for parameter sweeps, then run the final 1,000,000-message measurement with the best settings. This keeps iteration fast while preserving the project goal of validating million-scale behavior.
+- FCM Mock 메트릭은 누적값이므로 스크립트는 실행 전/후 delta를 기록합니다.
+- 설정을 바꾼 뒤에는 낮은 건수로 먼저 확인하는 것이 좋습니다.
+- 반복 가능한 성능 측정에서는 FCM Mock 실패율을 `0`으로 둡니다.
+- Docker Compose 기본 FCM Mock 실패율은 `0`입니다. DLT나 실패 재시도 확인이 필요할 때만 실패율을 올립니다.
+- FCM 배치 Mock은 최대 500건 배치 호출 모델을 흉내냅니다. 설정한 delay는 메시지마다가 아니라 배치 요청 1회마다 적용됩니다.
+- 설정 sweep은 10,000건으로 빠르게 확인하고, 최종 검증은 1,000,000건으로 수행했습니다.
 
-## First Results
+## 주요 결과
 
-Environment:
+### 10,000건 기준 비교
 
-- Local Docker Desktop
+환경:
+
 - Kafka partitions: 10
-- Consumer max poll records: 500
-- FCM Mock delay: 50 ms
+- Consumer `max.poll.records`: 500
+- FCM Mock delay: 50ms
 - FCM Mock failure rate: 0%
-- Message count: 10,000
+- 메시지 수: 10,000
 
-| Scenario | Elapsed seconds | Throughput msg/s | Notes |
+| 시나리오 | 소요 시간 | 처리량 | 비고 |
 |---|---:|---:|---|
-| Sequential baseline | 591.633 | 16.902 | Direct FCM Mock calls without Kafka |
-| Kafka pipeline before FCM batch | 589.000 | 16.978 | Producer published 10,000 messages in 178 ms; Consumer called FCM Mock one message at a time |
-| Kafka pipeline with FCM batch | 1.701 | 5,879.209 | User-run UI measurement; 500-message batch calls; failure rate 0% |
-| Kafka pipeline with FCM batch, clean rerun | 1.672 | 5,981.840 | DLT topic drained before measurement; failure rate 0% |
-| Kafka pipeline with FCM batch, 2% failures | 1.698 | 5,888.581 | Failure handling smoke result; 202 failures out of 10,000 matched the configured 2% failure rate |
+| 순차 기준선 | 591.633초 | 16.902 msg/s | Kafka 없이 FCM Mock 직접 호출 |
+| Kafka 파이프라인, FCM 단건 호출 | 589.000초 | 16.978 msg/s | Producer는 178ms에 발행했지만 Consumer가 FCM을 단건 호출 |
+| Kafka 파이프라인, FCM 배치 호출 | 1.701초 | 5,879.209 msg/s | 500건 단위 배치 호출 |
+| Kafka 파이프라인, FCM 배치 호출 클린 재측정 | 1.672초 | 5,981.840 msg/s | DLT 토픽 정리 후 실패율 0% |
+| Kafka 파이프라인, 실패율 2% | 1.698초 | 5,888.581 msg/s | 10,000건 중 202건 실패, DLT 경로 확인용 |
 
-The first pipeline result was close to the sequential baseline because the Consumer polled Kafka in batches but called FCM Mock one message at a time. After changing the Consumer to call the FCM batch mock once per Kafka batch, 10,000 messages completed in about 1.7 seconds at roughly 5.9k msg/s.
+Kafka를 붙인 것만으로는 성능이 좋아지지 않았습니다. 병목은 Consumer가 FCM을 단건 HTTP 호출로 보내는 부분이었고, FCM 배치 호출로 바꾼 뒤 10,000건 처리 시간이 약 589초에서 약 1.7초로 줄었습니다.
 
-The batch result should be interpreted as a local simulation of Admin SDK-style batching. It demonstrates the structural gain from reducing HTTP calls from 10,000 requests to roughly 20 batch requests at 500 messages per batch; it does not claim that production FCM always processes 500 messages in the same latency as one message.
+### FCM 지연 실험
 
-## FCM Delay Experiment
+환경:
 
-Environment:
-
-- Local Docker Desktop
 - Kafka partitions: 10
-- Consumer max poll records: 500
+- Consumer `max.poll.records`: 500
 - FCM Mock failure rate: 0%
-- Message count: 10,000
+- 메시지 수: 10,000
 
-| FCM Mock delay | Elapsed seconds | Throughput msg/s |
+| FCM Mock 지연 | 소요 시간 | 처리량 |
 |---:|---:|---:|
-| 20 ms | 1.152 | 8,682.134 |
-| 50 ms | 1.641 | 6,095.309 |
-| 100 ms | 2.655 | 3,767.124 |
+| 20ms | 1.152초 | 8,682.134 msg/s |
+| 50ms | 1.641초 | 6,095.309 msg/s |
+| 100ms | 2.655초 | 3,767.124 msg/s |
 
-Throughput decreases as the configured per-batch FCM delay increases, which matches the expected bottleneck shift: Kafka publishing remains fast, while Consumer completion time is bounded by the number of FCM batch calls multiplied by mock latency.
+FCM 배치 호출 지연이 커질수록 처리량이 낮아졌습니다. 이 결과는 Kafka 발행보다 Consumer-FCM 배치 호출 구간이 전체 시간에 더 큰 영향을 준다는 점을 보여줍니다.
 
-## Consumer Batch Size Experiment
+### Consumer 배치 크기 실험
 
-Environment:
+환경:
 
-- Local Docker Desktop
 - Kafka partitions: 10
-- FCM Mock delay: 50 ms
+- FCM Mock delay: 50ms
 - FCM Mock failure rate: 0%
-- Message count: 10,000
+- 메시지 수: 10,000
 
-| Consumer max.poll.records | Elapsed seconds | Throughput msg/s |
+| Consumer `max.poll.records` | 소요 시간 | 처리량 |
 |---:|---:|---:|
-| 100 | 6.226 | 1,606.088 |
-| 200 | 3.675 | 2,721.415 |
-| 500 | 1.653 | 6,048.868 |
+| 100 | 6.226초 | 1,606.088 msg/s |
+| 200 | 3.675초 | 2,721.415 msg/s |
+| 500 | 1.653초 | 6,048.868 msg/s |
 
-Larger Consumer poll batches reduce the number of FCM batch calls. With the current FCM Mock model, `max.poll.records=500` is the strongest local setting because it matches the mock FCM batch limit and minimizes per-batch delay overhead.
+`max.poll.records`가 커질수록 FCM 배치 호출 횟수가 줄어 처리량이 좋아졌습니다. 현재 FCM Mock 배치 한도 500건과 맞는 `500`이 가장 좋은 결과를 보였습니다.
 
-## Million-Message Result
+### 100만 건 최종 측정
 
-Environment:
+환경:
 
-- Local Docker Desktop
 - Kafka partitions: 10
-- Consumer max poll records: 500
-- FCM Mock delay: 50 ms
+- Consumer `max.poll.records`: 500
+- FCM Mock delay: 50ms
 - FCM Mock failure rate: 0%
-- Message count: 1,000,000
+- 메시지 수: 1,000,000
 
-| Requested | Published | FCM success | FCM failure | Producer elapsed ms | E2E elapsed seconds | Throughput msg/s |
+| 요청 | 발행 | FCM 성공 | FCM 실패 | Producer 발행 시간 | E2E 전체 시간 | 처리량 |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1,000,000 | 1,000,000 | 1,000,000 | 0 | 4,477 | 123.466 | 8,099.365 |
+| 1,000,000 | 1,000,000 | 1,000,000 | 0 | 4,477ms | 123.466초 | 8,099.365 msg/s |
 
-The million-message run completed without failures. Producer throughput was not the bottleneck; end-to-end time was dominated by Consumer-side FCM batch calls and local runtime overhead.
+100만 건 전체가 실패 없이 처리됐습니다. Producer 발행 시간은 약 4.5초였고, E2E 시간은 약 123초였습니다.
 
-## Partition Experiment Decision
+## 파티션 수 실험에 대한 판단
 
-The current local setup already uses 10 Kafka partitions and one Consumer application instance. More partitions do not automatically make this pipeline faster unless there is enough Consumer concurrency or multiple Consumer instances to consume those partitions in parallel.
+현재 로컬 구성은 Kafka 파티션 10개와 Consumer 애플리케이션 1개입니다. 파티션 수를 늘려도 Consumer 인스턴스나 listener concurrency가 같이 늘어나지 않으면 처리량이 자동으로 증가하지 않습니다.
 
-For this project, partition sweeps are optional after the million-message result because the measured bottleneck is now the Consumer-to-FCM batch path, not Kafka publishing. A partition experiment is still useful if the next goal is to demonstrate horizontal scaling by running multiple Consumer instances or increasing listener concurrency.
+이번 결과에서는 Producer/Kafka보다 Consumer-FCM 배치 호출 구간이 병목으로 확인됐습니다. 따라서 파티션 수만 바꾸는 실험은 필수로 보지 않았습니다. 다음 확장 실험을 한다면 Consumer 인스턴스 수나 listener concurrency를 함께 늘려 수평 확장 효과를 측정하는 편이 더 의미 있습니다.
