@@ -97,7 +97,7 @@ services:
     restart: unless-stopped
     environment:
       FCM_MOCK_RESPONSE_DELAY_MS: ${FCM_MOCK_RESPONSE_DELAY_MS:-50}
-      FCM_MOCK_FAILURE_RATE_PERCENT: ${FCM_MOCK_FAILURE_RATE_PERCENT:-2.0}
+      FCM_MOCK_FAILURE_RATE_PERCENT: ${FCM_MOCK_FAILURE_RATE_PERCENT:-0}
       TZ: ${TZ:-Asia/Seoul}
     ports:
       - "8080:8080"

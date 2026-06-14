@@ -58,6 +58,7 @@ measurement/results/pipeline_experiment.csv
 - FCM Mock metrics are cumulative, so scripts record before/after deltas.
 - Run with a low `--count` first to verify the setup.
 - For repeatable failure-free throughput tests, set the FCM Mock failure rate to `0`.
+- The Docker Compose default FCM Mock failure rate is `0`; increase it only for DLT/failure handling checks.
 - The FCM batch mock models the Firebase Admin SDK multicast/batch interface with up to 500 messages per request. The configured delay is applied once per batch request, so this measures the impact of reducing HTTP round trips rather than reproducing real FCM latency.
 - Use 10,000-message runs for parameter sweeps, then run the final 1,000,000-message measurement with the best settings. This keeps iteration fast while preserving the project goal of validating million-scale behavior.
 
