@@ -103,3 +103,21 @@ Environment:
 | 100 ms | 2.655 | 3,767.124 |
 
 Throughput decreases as the configured per-batch FCM delay increases, which matches the expected bottleneck shift: Kafka publishing remains fast, while Consumer completion time is bounded by the number of FCM batch calls multiplied by mock latency.
+
+## Consumer Batch Size Experiment
+
+Environment:
+
+- Local Docker Desktop
+- Kafka partitions: 10
+- FCM Mock delay: 50 ms
+- FCM Mock failure rate: 0%
+- Message count: 10,000
+
+| Consumer max.poll.records | Elapsed seconds | Throughput msg/s |
+|---:|---:|---:|
+| 100 | 6.226 | 1,606.088 |
+| 200 | 3.675 | 2,721.415 |
+| 500 | 1.653 | 6,048.868 |
+
+Larger Consumer poll batches reduce the number of FCM batch calls. With the current FCM Mock model, `max.poll.records=500` is the strongest local setting because it matches the mock FCM batch limit and minimizes per-batch delay overhead.
