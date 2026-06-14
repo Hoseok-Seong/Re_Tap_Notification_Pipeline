@@ -121,3 +121,26 @@ Environment:
 | 500 | 1.653 | 6,048.868 |
 
 Larger Consumer poll batches reduce the number of FCM batch calls. With the current FCM Mock model, `max.poll.records=500` is the strongest local setting because it matches the mock FCM batch limit and minimizes per-batch delay overhead.
+
+## Million-Message Result
+
+Environment:
+
+- Local Docker Desktop
+- Kafka partitions: 10
+- Consumer max poll records: 500
+- FCM Mock delay: 50 ms
+- FCM Mock failure rate: 0%
+- Message count: 1,000,000
+
+| Requested | Published | FCM success | FCM failure | Producer elapsed ms | E2E elapsed seconds | Throughput msg/s |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1,000,000 | 1,000,000 | 1,000,000 | 0 | 4,477 | 123.466 | 8,099.365 |
+
+The million-message run completed without failures. Producer throughput was not the bottleneck; end-to-end time was dominated by Consumer-side FCM batch calls and local runtime overhead.
+
+## Partition Experiment Decision
+
+The current local setup already uses 10 Kafka partitions and one Consumer application instance. More partitions do not automatically make this pipeline faster unless there is enough Consumer concurrency or multiple Consumer instances to consume those partitions in parallel.
+
+For this project, partition sweeps are optional after the million-message result because the measured bottleneck is now the Consumer-to-FCM batch path, not Kafka publishing. A partition experiment is still useful if the next goal is to demonstrate horizontal scaling by running multiple Consumer instances or increasing listener concurrency.
