@@ -1,2 +1,5 @@
 timestamp,label,requested_count,published_count,fcm_total_delta,fcm_success_delta,fcm_failure_delta,producer_elapsed_millis,end_to_end_elapsed_seconds,throughput_msg_per_second,fcm_response_delay_ms,fcm_failure_rate_percent
 2026-06-14T14:55:23,pipeline-p10-b500-d50-f0,10000,10000,10000,10000,0,178,589.0,16.978,50,0.0
+2026-06-14T19:39:55,pipeline-batch-10000,10000,10000,10000,9798,202,169,1.698,5888.581,50,2.0
+2026-06-14T19:47:19,pipeline-batch-10000,10000,10000,10000,10000,0,162,1.701,5879.209,50,0.0
+2026-06-14T19:58:39,pipeline-batch-clean-10000-d50-f0,10000,10000,10000,10000,0,127,1.672,5981.84,50,0.0

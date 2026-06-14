@@ -54,6 +54,7 @@ measurement/results/pipeline_experiment.csv
 - FCM Mock metrics are cumulative, so scripts record before/after deltas.
 - Run with a low `--count` first to verify the setup.
 - For repeatable failure-free throughput tests, set the FCM Mock failure rate to `0`.
+- The FCM batch mock models the Firebase Admin SDK multicast/batch interface with up to 500 messages per request. The configured delay is applied once per batch request, so this measures the impact of reducing HTTP round trips rather than reproducing real FCM latency.
 
 ## First Results
 
@@ -69,6 +70,11 @@ Environment:
 | Scenario | Elapsed seconds | Throughput msg/s | Notes |
 |---|---:|---:|---|
 | Sequential baseline | 591.633 | 16.902 | Direct FCM Mock calls without Kafka |
-| Kafka pipeline | 589.000 | 16.978 | Producer published 10,000 messages in 178 ms; Consumer FCM calls are currently sequential |
+| Kafka pipeline before FCM batch | 589.000 | 16.978 | Producer published 10,000 messages in 178 ms; Consumer called FCM Mock one message at a time |
+| Kafka pipeline with FCM batch | 1.701 | 5,879.209 | User-run UI measurement; 500-message batch calls; failure rate 0% |
+| Kafka pipeline with FCM batch, clean rerun | 1.672 | 5,981.840 | DLT topic drained before measurement; failure rate 0% |
+| Kafka pipeline with FCM batch, 2% failures | 1.698 | 5,888.581 | Failure handling smoke result; 202 failures out of 10,000 matched the configured 2% failure rate |
 
-The first pipeline result is close to the sequential baseline because the current Consumer polls Kafka in batches but calls FCM Mock one message at a time. The next optimization target is parallelizing or true-batching the FCM send path before running partition/batch-size experiments.
+The first pipeline result was close to the sequential baseline because the Consumer polled Kafka in batches but called FCM Mock one message at a time. After changing the Consumer to call the FCM batch mock once per Kafka batch, 10,000 messages completed in about 1.7 seconds at roughly 5.9k msg/s.
+
+The batch result should be interpreted as a local simulation of Admin SDK-style batching. It demonstrates the structural gain from reducing HTTP calls from 10,000 requests to roughly 20 batch requests at 500 messages per batch; it does not claim that production FCM always processes 500 messages in the same latency as one message.
