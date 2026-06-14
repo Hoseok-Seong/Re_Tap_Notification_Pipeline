@@ -36,12 +36,24 @@ public class NotificationConsumerService {
 
         log.info("Notification consume batch started. batchCount={}", messages.size());
 
-        for (NotificationMessage message : messages) {
-            try {
-                fcmMockClient.send(message);
-                successCount++;
-            } catch (Exception e) {
-                failureCount++;
+        try {
+            FcmMockClient.BatchSendResponse response = fcmMockClient.sendBatch(messages);
+            if (response.responses().size() != messages.size()) {
+                throw new IllegalStateException("FCM batch response size does not match request size");
+            }
+
+            successCount = response.successCount();
+            failureCount = response.failureCount();
+
+            for (int i = 0; i < response.responses().size(); i++) {
+                FcmMockClient.SendResponse sendResponse = response.responses().get(i);
+                if (!sendResponse.success()) {
+                    publishToDlt(new FailedNotificationMessage(messages.get(i), 0, sendResponse.errorMessage()));
+                }
+            }
+        } catch (Exception e) {
+            failureCount = messages.size();
+            for (NotificationMessage message : messages) {
                 publishToDlt(new FailedNotificationMessage(message, 0, e.getMessage()));
             }
         }

@@ -3,7 +3,7 @@ package com.retap.notificationconsumer.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 import com.retap.notificationconsumer.client.FcmMockClient;
@@ -29,7 +29,15 @@ class NotificationConsumerServiceTest {
     void sendsBatchAndPublishesFailuresToDlt() {
         NotificationMessage success = message(1);
         NotificationMessage failure = message(2);
-        doThrow(new RuntimeException("fcm failed")).when(fcmMockClient).send(failure);
+        when(fcmMockClient.sendBatch(List.of(success, failure)))
+                .thenReturn(new FcmMockClient.BatchSendResponse(
+                        1,
+                        1,
+                        List.of(
+                                new FcmMockClient.SendResponse(true, "fcm-message-1", null),
+                                new FcmMockClient.SendResponse(false, null, "fcm failed")
+                        )
+                ));
 
         NotificationConsumerService.BatchResult result = service.sendBatch(List.of(success, failure));
 

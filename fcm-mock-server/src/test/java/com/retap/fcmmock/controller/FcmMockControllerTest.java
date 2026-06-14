@@ -45,6 +45,56 @@ class FcmMockControllerTest {
     }
 
     @Test
+    void sendBatchReturnsPerMessageResults() throws Exception {
+        mockMvc.perform(post("/v1/projects/retap-test/messages:sendBatch")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "messages": [
+                                    {
+                                      "token": "mock-token-1",
+                                      "notification": {
+                                        "title": "title",
+                                        "body": "body"
+                                      }
+                                    },
+                                    {
+                                      "token": "mock-token-2",
+                                      "notification": {
+                                        "title": "title",
+                                        "body": "body"
+                                      }
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successCount").value(2))
+                .andExpect(jsonPath("$.failureCount").value(0))
+                .andExpect(jsonPath("$.responses[0].success").value(true))
+                .andExpect(jsonPath("$.responses[0].messageId", startsWith("projects/retap-test/messages/")))
+                .andExpect(jsonPath("$.responses[1].success").value(true));
+    }
+
+    @Test
+    void sendBatchRejectsTooManyMessages() throws Exception {
+        StringBuilder messages = new StringBuilder();
+        for (int i = 0; i < 501; i++) {
+            if (i > 0) {
+                messages.append(",");
+            }
+            messages.append("""
+                    {"token":"mock-token","notification":{"title":"title","body":"body"}}
+                    """);
+        }
+
+        mockMvc.perform(post("/v1/projects/retap-test/messages:sendBatch")
+                        .contentType("application/json")
+                        .content("{\"messages\":[" + messages + "]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void metricsReturnsCountersAndConfiguredValues() throws Exception {
         mockMvc.perform(get("/metrics"))
                 .andExpect(status().isOk())

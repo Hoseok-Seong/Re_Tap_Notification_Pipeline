@@ -14,12 +14,24 @@ public class FcmMockMetrics {
         return totalRequests.incrementAndGet();
     }
 
+    public long addTotalRequests(long count) {
+        return totalRequests.addAndGet(count);
+    }
+
     public long incrementSuccessRequests() {
         return successRequests.incrementAndGet();
     }
 
+    public long addSuccessRequests(long count) {
+        return successRequests.addAndGet(count);
+    }
+
     public long incrementFailureRequests() {
         return failureRequests.incrementAndGet();
+    }
+
+    public long addFailureRequests(long count) {
+        return failureRequests.addAndGet(count);
     }
 
     public Snapshot snapshot(long responseDelayMs, double failureRatePercent) {
