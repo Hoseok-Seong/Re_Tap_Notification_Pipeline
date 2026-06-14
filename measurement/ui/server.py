@@ -136,6 +136,11 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             kind = str(payload.get("kind", "pipeline"))
             count = positive_int(payload.get("count"), "count")
             label = clean_label(str(payload.get("label") or default_label(kind, count)))
+            if bool(payload.get("applyFcmBeforeRun", True)):
+                apply_fcm_config_values(
+                    non_negative_int(payload.get("delayMs"), "delayMs"),
+                    percent_value(payload.get("failureRatePercent"), "failureRatePercent"),
+                )
             command = build_command(kind, count, label, payload)
             log_file = LOG_DIR / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}.log"
             STATE.start(kind, label, command, log_file)
@@ -159,20 +164,7 @@ class MeasurementHandler(BaseHTTPRequestHandler):
             payload = self.read_json()
             delay_ms = non_negative_int(payload.get("delayMs"), "delayMs")
             failure_rate_percent = percent_value(payload.get("failureRatePercent"), "failureRatePercent")
-            command = [
-                "docker",
-                "compose",
-                "up",
-                "-d",
-                "--force-recreate",
-                "fcm-mock-server",
-            ]
-            env = {
-                **os.environ,
-                "FCM_MOCK_RESPONSE_DELAY_MS": str(delay_ms),
-                "FCM_MOCK_FAILURE_RATE_PERCENT": str(failure_rate_percent),
-            }
-            subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
+            apply_fcm_config_values(delay_ms, failure_rate_percent)
             self.send_json({"applied": True, "metrics": wait_for_fcm_metrics()})
         except subprocess.CalledProcessError as e:
             self.send_json({"error": f"docker compose failed with exit code {e.returncode}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -234,6 +226,23 @@ def percent_value(value: Any, name: str) -> float:
     if number < 0 or number > 100:
         raise ValueError(f"{name} must be between 0 and 100")
     return number
+
+
+def apply_fcm_config_values(delay_ms: int, failure_rate_percent: float) -> None:
+    command = [
+        "docker",
+        "compose",
+        "up",
+        "-d",
+        "--force-recreate",
+        "fcm-mock-server",
+    ]
+    env = {
+        **os.environ,
+        "FCM_MOCK_RESPONSE_DELAY_MS": str(delay_ms),
+        "FCM_MOCK_FAILURE_RATE_PERCENT": str(failure_rate_percent),
+    }
+    subprocess.run(command, cwd=PROJECT_ROOT, env=env, check=True)
 
 
 def clean_label(value: str) -> str:

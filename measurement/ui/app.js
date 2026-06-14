@@ -4,6 +4,7 @@ const elements = {
   label: document.querySelector("#label"),
   timeoutSeconds: document.querySelector("#timeoutSeconds"),
   skipPrepareArrivals: document.querySelector("#skipPrepareArrivals"),
+  applyFcmBeforeRun: document.querySelector("#applyFcmBeforeRun"),
   fcmDelayMs: document.querySelector("#fcmDelayMs"),
   fcmFailureRatePercent: document.querySelector("#fcmFailureRatePercent"),
   runButton: document.querySelector("#runButton"),
@@ -15,6 +16,8 @@ const elements = {
   pipelineTable: document.querySelector("#pipelineTable"),
   baselineTable: document.querySelector("#baselineTable"),
 };
+
+let fcmInputsDirty = false;
 
 elements.kind.addEventListener("change", () => {
   const count = elements.count.value || "10000";
@@ -36,6 +39,9 @@ elements.runButton.addEventListener("click", async () => {
     label: elements.label.value,
     timeoutSeconds: Number(elements.timeoutSeconds.value),
     skipPrepareArrivals: elements.skipPrepareArrivals.checked,
+    applyFcmBeforeRun: elements.applyFcmBeforeRun.checked,
+    delayMs: Number(elements.fcmDelayMs.value),
+    failureRatePercent: Number(elements.fcmFailureRatePercent.value),
   };
 
   const response = await fetch("/api/run", {
@@ -46,8 +52,18 @@ elements.runButton.addEventListener("click", async () => {
   const body = await response.json();
   if (!response.ok) {
     alert(body.error || "측정 실행에 실패했습니다.");
+  } else {
+    fcmInputsDirty = false;
   }
   await refresh();
+});
+
+elements.fcmDelayMs.addEventListener("input", () => {
+  fcmInputsDirty = true;
+});
+
+elements.fcmFailureRatePercent.addEventListener("input", () => {
+  fcmInputsDirty = true;
 });
 
 elements.applyFcmButton.addEventListener("click", async () => {
@@ -65,6 +81,8 @@ elements.applyFcmButton.addEventListener("click", async () => {
   const body = await response.json();
   if (!response.ok) {
     alert(body.error || "FCM Mock 설정 적용에 실패했습니다.");
+  } else {
+    fcmInputsDirty = false;
   }
   await refresh();
 });
@@ -127,10 +145,10 @@ function renderFcmMetrics(metrics) {
     `failureCount=${metrics.failureRequests}`,
   ].join(" / ");
 
-  if (document.activeElement !== elements.fcmDelayMs) {
+  if (!fcmInputsDirty && document.activeElement !== elements.fcmDelayMs) {
     elements.fcmDelayMs.value = metrics.responseDelayMs;
   }
-  if (document.activeElement !== elements.fcmFailureRatePercent) {
+  if (!fcmInputsDirty && document.activeElement !== elements.fcmFailureRatePercent) {
     elements.fcmFailureRatePercent.value = metrics.failureRatePercent;
   }
 }

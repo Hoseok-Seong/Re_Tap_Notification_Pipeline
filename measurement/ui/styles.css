@@ -65,7 +65,7 @@ p {
 
 .controls {
   display: grid;
-  grid-template-columns: 180px 140px minmax(220px, 1fr) 150px 210px 120px;
+  grid-template-columns: 180px 140px minmax(220px, 1fr) 150px 210px 210px 120px;
   align-items: end;
   gap: 12px;
 }
