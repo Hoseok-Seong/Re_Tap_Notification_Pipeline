@@ -6,3 +6,4 @@ docs/SPEC.md
 .gradle/
 build/
 **/build/
+measurement/results/ui_logs/

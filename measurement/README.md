@@ -2,6 +2,23 @@
 
 This directory contains local measurement scripts for the notification pipeline.
 
+## Browser UI
+
+Run a local UI when you want to start long measurements manually and inspect CSV rows.
+
+```bash
+python3 measurement/ui/server.py
+```
+
+Open `http://127.0.0.1:8090`, choose `Kafka Pipeline` or `Sequential Baseline`, set the count and label, then click `실행`.
+
+The UI runs the existing scripts in the background and appends results to:
+
+- `measurement/results/pipeline_experiment.csv`
+- `measurement/results/baseline.csv`
+
+Per-run logs are written under `measurement/results/ui_logs/`.
+
 ## Baseline
 
 Sequentially call FCM Mock without Kafka:

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReTap Measurement</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>ReTap Measurement</h1>
+          <p>Baseline과 Kafka 파이프라인 측정을 실행하고 CSV 결과를 확인합니다.</p>
+        </div>
+        <button id="refreshButton" type="button">새로고침</button>
+      </header>
+
+      <section class="panel controls">
+        <div class="field">
+          <label for="kind">측정 종류</label>
+          <select id="kind">
+            <option value="pipeline">Kafka Pipeline</option>
+            <option value="baseline">Sequential Baseline</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="count">건수</label>
+          <input id="count" type="number" min="1" step="1000" value="10000" />
+        </div>
+        <div class="field">
+          <label for="label">라벨</label>
+          <input id="label" type="text" value="pipeline-batch-10000" />
+        </div>
+        <div class="field">
+          <label for="timeoutSeconds">타임아웃 초</label>
+          <input id="timeoutSeconds" type="number" min="1" step="60" value="900" />
+        </div>
+        <label class="checkbox">
+          <input id="skipPrepareArrivals" type="checkbox" />
+          <span>arrival_date 업데이트 생략</span>
+        </label>
+        <button id="runButton" type="button">실행</button>
+      </section>
+
+      <section class="status-grid">
+        <article class="panel">
+          <h2>상태</h2>
+          <dl id="statusList" class="status-list"></dl>
+        </article>
+        <article class="panel">
+          <h2>최근 로그</h2>
+          <pre id="logBox" class="log-box"></pre>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Pipeline CSV</h2>
+        <div id="pipelineTable" class="table-wrap"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Baseline CSV</h2>
+        <div id="baselineTable" class="table-wrap"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
