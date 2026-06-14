@@ -80,3 +80,21 @@ Environment:
 The first pipeline result was close to the sequential baseline because the Consumer polled Kafka in batches but called FCM Mock one message at a time. After changing the Consumer to call the FCM batch mock once per Kafka batch, 10,000 messages completed in about 1.7 seconds at roughly 5.9k msg/s.
 
 The batch result should be interpreted as a local simulation of Admin SDK-style batching. It demonstrates the structural gain from reducing HTTP calls from 10,000 requests to roughly 20 batch requests at 500 messages per batch; it does not claim that production FCM always processes 500 messages in the same latency as one message.
+
+## FCM Delay Experiment
+
+Environment:
+
+- Local Docker Desktop
+- Kafka partitions: 10
+- Consumer max poll records: 500
+- FCM Mock failure rate: 0%
+- Message count: 10,000
+
+| FCM Mock delay | Elapsed seconds | Throughput msg/s |
+|---:|---:|---:|
+| 20 ms | 1.152 | 8,682.134 |
+| 50 ms | 1.641 | 6,095.309 |
+| 100 ms | 2.655 | 3,767.124 |
+
+Throughput decreases as the configured per-batch FCM delay increases, which matches the expected bottleneck shift: Kafka publishing remains fast, while Consumer completion time is bounded by the number of FCM batch calls multiplied by mock latency.

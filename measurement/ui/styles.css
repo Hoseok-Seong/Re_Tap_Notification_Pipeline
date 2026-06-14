@@ -65,7 +65,7 @@ p {
 
 .controls {
   display: grid;
-  grid-template-columns: 180px 140px minmax(220px, 1fr) 150px 210px 210px 120px;
+  grid-template-columns: 180px 140px minmax(220px, 1fr) 150px;
   align-items: end;
   gap: 12px;
 }
@@ -104,6 +104,7 @@ select {
 }
 
 button {
+  width: 100%;
   padding: 0 14px;
   color: #fff;
   background: var(--accent);
@@ -124,8 +125,13 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   height: 38px;
   color: var(--text);
+}
+
+.checkbox span {
+  overflow-wrap: anywhere;
 }
 
 .checkbox input {
